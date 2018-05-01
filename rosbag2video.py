@@ -27,6 +27,7 @@ opt_out_file=""
 opt_fourcc = "XVID"
 opt_topic = ""
 opt_files = []
+opt_rotate = 0
 opt_display_images = False;
 def print_help():
     print
@@ -47,7 +48,7 @@ if len(sys.argv) < 2:
     exit(1)
 else :
    try:
-      opts, opt_files = getopt.getopt(sys.argv[1:],"hsr:o:c:t:",["fps=","ofile=","codec=","topic="])
+      opts, opt_files = getopt.getopt(sys.argv[1:],"hsr:o:c:t:f:",["fps=","ofile=","codec=","topic=","rotate="])
    except getopt.GetoptError:
       print_help()
       sys.exit(2)
@@ -65,6 +66,8 @@ else :
          opt_fourcc = arg
       elif opt in ("-t", "--topic"):
          opt_topic = arg
+      elif opt in ("-f", "--rotate"):
+         opt_rotate = int(arg)
       else:
           print "opz:", opt,'arg:', arg
 
@@ -87,6 +90,20 @@ def filter_image_msgs(topic, datatype, md5sum, msg_def, header):
             print topic,' with datatype:', str(datatype)
             return True;
     return False;
+
+def cv_rot90(img, rotflag):
+    """ rotFlag 1=CW, 2=CCW, 3=180"""
+    if rotflag == 1:
+        img = cv2.transpose(img)
+        img = cv2.flip(img, 1)  # transpose+flip(1)=CW
+    elif rotflag == 2:
+        img = cv2.transpose(img)
+        img = cv2.flip(img, 0)  # transpose+flip(0)=CCW
+    elif rotflag == 3:
+        img = cv2.flip(img, -1)  # transpose+flip(-1)=180
+    elif rotflag != 0:  # if not 0,1,2,3
+        raise Exception("Unknown rotation flag({})".format(rotflag))
+    return img
 
 t_first={};
 t_file={};
@@ -117,17 +134,26 @@ for files in range(0,len(opt_files)):
             if msg.format.find("jpeg")!=-1 :
                 if msg.format.find("8")!=-1 and (msg.format.find("rgb")!=-1 or msg.format.find("bgr")!=-1):
                     if opt_display_images:
-                        np_arr = np.fromstring(msg.data, np.uint8)
-                        cv_image = cv2.imdecode(np_arr, cv2.CV_LOAD_IMAGE_COLOR)
+                        cv_image = bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
                 elif msg.format.find("mono8")!=-1 :
                     if opt_display_images:
-                        np_arr = np.fromstring(msg.data, np.uint8)
-                        cv_image = cv2.imdecode(np_arr, cv2.CV_LOAD_IMAGE_COLOR)
+                        cv_image = bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
                 else:
                     print 'unsuportet format:', msg.format
                     exit(1)
 
                 if len(msg.data)>0:
+                    if opt_display_images or opt_rotate > 0:
+                        try:
+                            cv_image = bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+                        except Exception as ex:
+                            print ex
+                            continue
+                        if opt_rotate > 0:
+                             cv_image = cv_rot90(cv_image, opt_rotate)
+                             # TODO(lwalter) unncessary recompression?
+                             msg = bridge.cv2_to_compressed_imgmsg(cv_image)
+
                     if not topic in t_first :
                         t_first[topic] = t;
                         t_video[topic] = 0;
@@ -148,17 +174,14 @@ for files in range(0,len(opt_files)):
                     pix_fmt=""
                     if msg.encoding.find("mono8")!=-1 :
                         pix_fmt = "gray"
-                        #np_arr = np.fromstring(msg.data, np.uint8)
                         if opt_display_images:
                             cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
                     elif msg.encoding.find("bgr8")!=-1 :
                         pix_fmt = "bgr24"
-                        #np_arr = np.fromstring(msg.data, np.uint8)
                         if opt_display_images:
                             cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
                     elif msg.encoding.find("rgb8")!=-1 :
                         pix_fmt = "rgb24"
-                        #np_arr = np.fromstring(msg.data, np.uint8)
                         if opt_display_images:
                             cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
                     else:
@@ -166,6 +189,16 @@ for files in range(0,len(opt_files)):
                         exit(1)
 
                     if len(msg.data)>0:
+                        if opt_display_images or opt_rotate > 0:
+                            try:
+                                cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
+                            except Exception as ex:
+                                print ex
+                                continue
+                            if opt_rotate > 0:
+                                 cv_image = cv_rot90(cv_image, opt_rotate)
+                                 msg = bridge.cv2_to_imgmsg(cv_image)
+
                         if not topic in t_first :
                             t_first[topic] = t;
                             t_video[topic] = 0;
