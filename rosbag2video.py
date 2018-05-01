@@ -125,7 +125,7 @@ for files in range(0,len(opt_files)):
     bag = rosbag.Bag(bagfile)
     for topic, msg, t in bag.read_messages(connection_filter=filter_image_msgs):
     #        print topic, 'at', str(t)#,'msg=', str(msg)
-        topic_file_name = str(topic).replace("/", "")+".mp4"
+        topic_file_name = str(topic).replace("/", "")+".avi"
         if opt_out_file=="":
             out_file = prefix+topic_file_name
         else:
