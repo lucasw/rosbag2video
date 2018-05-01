@@ -18,7 +18,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import cv2
 
 import numpy as np
-
+import os
 import shlex, subprocess
 
 
@@ -103,10 +103,16 @@ bridge = CvBridge()
 for files in range(0,len(opt_files)):
     #First arg is the bag to look at
     bagfile = opt_files[files]
+    prefix = os.path.basename(bagfile)[:-4]+"_"
     #Go through the bag file
     bag = rosbag.Bag(bagfile)
     for topic, msg, t in bag.read_messages(connection_filter=filter_image_msgs):
     #        print topic, 'at', str(t)#,'msg=', str(msg)
+        topic_file_name = str(topic).replace("/", "")+".mp4"
+        if opt_out_file=="":
+            out_file = prefix+topic_file_name
+        else:
+            out_file = opt_out_file
         try:
             if msg.format.find("jpeg")!=-1 :
                 if msg.format.find("8")!=-1 and (msg.format.find("rgb")!=-1 or msg.format.find("bgr")!=-1):
@@ -129,10 +135,6 @@ for files in range(0,len(opt_files)):
                     t_file[topic] = (t-t_first[topic]).to_sec()
                     while t_video[topic]<t_file[topic]:
                         if not topic in p_avconv:
-                            if opt_out_file=="":
-                                out_file = str(topic).replace("/", "")+".mp4"
-                            else:
-                                out_file = opt_out_file
                             p_avconv[topic] = subprocess.Popen(['avconv','-r',str(opt_fps),'-an','-c','mjpeg','-f','mjpeg','-i','-',out_file],stdin=subprocess.PIPE)
                         p_avconv[topic].stdin.write(msg.data)
                         t_video[topic] += 1.0/opt_fps
@@ -171,10 +173,6 @@ for files in range(0,len(opt_files)):
                         t_file[topic] = (t-t_first[topic]).to_sec()
                         while t_video[topic]<t_file[topic]:
                             if not topic in p_avconv:
-                                if opt_out_file=="":
-                                    out_file = str(topic).replace("/", "")+".mp4"
-                                else:
-                                    out_file = opt_out_file
                                 size = str(msg.width)+"x"+str(msg.height)
                                 p_avconv[topic] = subprocess.Popen(['avconv','-r',str(opt_fps),'-an','-f','rawvideo','-s',size,'-pix_fmt', pix_fmt,'-i','-',out_file],stdin=subprocess.PIPE)
                             p_avconv[topic].stdin.write(msg.data)
